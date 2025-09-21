@@ -159,24 +159,23 @@ async def read_root(request: Request):
 async def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
 
-@app.get("/api/buses")
-async def get_buses():
-    conn = sqlite3.connect("bus_tracker.db")
+@app.get("/api/stops")
+async def getstops():
+    conn = sqlite3.connect("bustracker.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM buses")
-    buses = []
+    cursor.execute("SELECT * FROM stops")
+    stops = []
     for row in cursor.fetchall():
-        buses.append({
+        stops.append({
             "id": row[0],
-            "bus_number": row[1],
-            "route_id": row[2],
-            "latitude": row[3],
-            "longitude": row[4],
-            "speed": row[5],
-            "occupancy": row[6],
-            "last_updated": row[7]
+            "stopname": row[1],
+            "latitude": row[2],
+            "longitude": row[3],
+            "routeid": row[4]
         })
     conn.close()
+    return stops
+
 
     # Compress response for low bandwidth
     response_data = json.dumps(buses)
