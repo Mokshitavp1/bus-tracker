@@ -49,4 +49,12 @@ body {
     margin-bottom: 1rem;
 }
 
+#arrivals-container {
+  margin-top: 10px;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  color: #333;
+}
+
+
 /* Add more styling as needed */
