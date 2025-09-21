@@ -103,6 +103,16 @@ def init_db():
 
 # Initialize database
 init_db()
+bus_arrivals = {
+    "stop1": [
+        {"route": "5A", "destination": "Downtown"},
+        {"route": "7B", "destination": "Airport"}
+    ],
+    "stop2": [
+        {"route": "3C", "destination": "Mall"},
+        {"route": "9D", "destination": "University"}
+    ]
+}
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -134,6 +144,11 @@ class BusLocation(BaseModel):
     longitude: float
     speed: float
     occupancy: int
+
+class Arrival(BaseModel):
+    route: str
+    destination: str
+    eta: int
 
 # Routes
 @app.get("/", response_class=HTMLResponse)
@@ -363,6 +378,16 @@ def search_routes(start: str = Query(...), end: str = Query(...)):
     ]
 
     return JSONResponse(content={"routes": matching_routes})
+
+@app.get("/api/arrivals/{stop_id}", response_model=List[Arrival])
+async def get_arrivals(stop_id: str):
+    if stop_id not in bus_arrivals:
+        raise HTTPException(status_code=404, detail="Stop not found")
+    arrivals = []
+    for bus in bus_arrivals[stop_id]:
+        eta = random.randint(1, 15)  # Simulating ETA between 1 and 15 minutes
+        arrivals.append(Arrival(route=bus["route"], destination=bus["destination"], eta=eta))
+    return arrivals
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)
