@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bus Tracker</title>
+    <link rel="stylesheet" href="/static/css/style.css" />
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        crossorigin=""
+    />
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="container">
+                <h1 class="logo">🚌 Bus Tracker</h1>
+                <button id="menu-toggle" class="menu-toggle">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </button>
+            </div>
+        </header>
+
+        <nav id="nav-menu" class="nav-menu">
+            <button class="tab-btn active" data-tab="map">Map</button>
+            <button class="tab-btn" data-tab="search">Search</button>
+            <button class="tab-btn" data-tab="stops">Stops</button>
+            <button class="tab-btn" data-tab="arrivals">Arrivals</button>
+        </nav>
+
+        <div id="map-tab" class="tab-content active">
+            <div id="map"></div>
+            <div class="map-controls">
+                <button id="locate-btn" class="control-btn">📍 My Location</button>
+                <button id="refresh-btn" class="control-btn">🔄 Refresh</button>
+            </div>
+        </div>
+
+        <div id="search-tab" class="tab-content">
+            <div class="search-container">
+                <h2>Route Search</h2>
+                <form id="search-form">
+                    <div class="input-group">
+                        <label for="start-stop">From</label>
+                        <input type="text" id="start-stop" placeholder="Enter starting point" />
+                    </div>
+                    <div class="input-group">
+                        <label for="end-stop">To</label>
+                        <input type="text" id="end-stop" placeholder="Enter destination" />
+                    </div>
+                    <button type="submit">Search Routes</button>
+                </form>
+                <div id="search-results"></div>
+            </div>
+        </div>
+
+        <div id="stops-tab" class="tab-content">
+            <div class="stops-container">
+                <h2>Bus Stops</h2>
+                <div class="input-group">
+                    <input type="text" id="stop-search" placeholder="Search bus stops..." />
+                </div>
+                <div id="stops-list"></div>
+            </div>
+        </div>
+
+        <div id="arrivals-tab" class="tab-content">
+            <div class="arrivals-container">
+                <h2>Live Arrivals</h2>
+                <div class="input-group">
+                    <select id="arrival-stop">
+                        <option value="">Select a bus stop</option>
+                    </select>
+                </div>
+                <div id="arrivals-list"></div>
+            </div>
+        </div>
+
+        <div id="notifications"></div>
+
+        <div id="connection-status" class="connection-status">
+            <span id="status-text">Connecting...</span>
+        </div>
+    </div>
+
+    <script
+        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        crossorigin=""
+    ></script>
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

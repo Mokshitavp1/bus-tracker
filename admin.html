@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transport Authority Dashboard</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Header -->
+        <header class="admin-header">
+            <div class="container">
+                <h1>🏛️ Transport Authority Dashboard</h1>
+                <div class="admin-actions">
+                    <button class="btn-primary" onclick="location.href='/'">Public View</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Active Buses</h3>
+                <div class="stat-value" id="active-buses">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Total Routes</h3>
+                <div class="stat-value" id="total-routes">0</div>
+            </div>
+            <div class="stat-card">
+                <h3>Average Occupancy</h3>
+                <div class="stat-value" id="avg-occupancy">0%</div>
+            </div>
+            <div class="stat-card">
+                <h3>Active Alerts</h3>
+                <div class="stat-value" id="active-alerts">0</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="admin-content">
+            <!-- Fleet Map -->
+            <div class="admin-section">
+                <h2>Fleet Overview</h2>
+                <div id="admin-map" style="height: 400px;"></div>
+            </div>
+
+            <!-- Live Fleet Status -->
+            <div class="admin-section">
+                <h2>Live Fleet Status</h2>
+                <div class="table-container">
+                    <table id="fleet-table">
+                        <thead>
+                            <tr>
+                                <th>Bus Number</th>
+                                <th>Route</th>
+                                <th>Speed</th>
+                                <th>Occupancy</th>
+                                <th>Status</th>
+                                <th>Last Update</th>
+                            </tr>
+                        </thead>
+                        <tbody id="fleet-tbody">
+                            <!-- Data populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Route Performance -->
+            <div class="admin-section">
+                <h2>Route Performance</h2>
+                <div id="route-performance">
+                    <!-- Performance metrics will be populated here -->
+                </div>
+            </div>
+
+            <!-- Alerts & Notifications -->
+            <div class="admin-section">
+                <h2>Alerts & Notifications</h2>
+                <div class="alert-controls">
+                    <button class="btn-warning" onclick="sendAlert('delay')">Send Delay Alert</button>
+                    <button class="btn-danger" onclick="sendAlert('breakdown')">Report Breakdown</button>
+                    <button class="btn-info" onclick="sendAlert('overcrowding')">Overcrowding Alert</button>
+                </div>
+                <div id="alerts-list"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/static/js/admin.js"></script>
+</body>
+</html>

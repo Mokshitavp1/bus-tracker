@@ -1,0 +1,43 @@
+entrypoint = "main.py"
+modules = ["python-3.11", "web"]
+hidden = [".config", ".git", "bus_tracker.db", "__pycache__"]
+
+[nix]
+channel = "stable-24_05"
+
+[deployment]
+deploymentTarget = "autoscale"
+build = ["python3", "-m", "pip", "install", "-r", "requirements.txt"]
+run = ["python3", "main.py"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80
+
+[env]
+PORT = "5000"
+PYTHONPATH = "."
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Start application"
+
+[[workflows.workflow]]
+name = "Start application"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 main.py"
+waitForPort = 5000
+
+[agent]
+integrations = ["python_database:1.0.0"]
