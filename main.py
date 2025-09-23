@@ -5,7 +5,11 @@ from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 from fastapi import Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import Response
+import gzip
+import json
+
+
 import sqlite3
 import json
 import asyncio
@@ -164,8 +168,18 @@ async def get_buses():
     conn.close()
 
     # Compress response for low bandwidth
-    response_data = json.dumps(buses)
-    return JSONResponse(content=buses, headers={"Content-Encoding": "gzip"})
+    from fastapi.responses import Response
+import gzip
+import json
+
+response_data = json.dumps(buses)
+compressed_data = gzip.compress(response_data.encode("utf-8"))
+
+return Response(
+    content=compressed_data,
+    media_type="application/json",
+    headers={"Content-Encoding": "gzip"}
+)
 
 @app.get("/api/stops")
 async def get_stops():
@@ -230,29 +244,34 @@ async def get_arrivals(stop_id: int):
 
 @app.get("/api/search_routes")
 async def search_routes(start: str = "", end: str = ""):
+    @app.get("/api/search_routes")
+async def search_routes(start: str = Query(...), end: str = Query(...)):
     conn = sqlite3.connect("bus_tracker.db")
     cursor = conn.cursor()
-    cursor.execute("""
-        SELECT r.*, s1.stop_name as start_stop, s2.stop_name as end_stop
-        FROM routes r
-        LEFT JOIN stops s1 ON s1.route_id = r.id
-        LEFT JOIN stops s2 ON s2.route_id = r.id
-        WHERE (s1.stop_name LIKE ? OR r.start_point LIKE ?)
-        AND (s2.stop_name LIKE ? OR r.end_point LIKE ?)
-        GROUP BY r.id
-    """, (f"%{start}%", f"%{start}%", f"%{end}%", f"%{end}%"))
 
-    routes = []
-    for row in cursor.fetchall():
-        routes.append({
-            "id": row[0],
-            "route_name": row[1],
-            "start_point": row[2],
-            "end_point": row[3]
-        })
+    cursor.execute("SELECT id, route_name, start_point, end_point FROM routes")
+    routes = cursor.fetchall()
+
+    result_routes = []
+
+    for route_id, route_name, start_point, end_point in routes:
+        cursor.execute("SELECT stop_name, latitude, longitude FROM stops WHERE route_id = ?", (route_id,))
+        stops = cursor.fetchall()
+
+        stop_names = [stop[0].lower() for stop in stops]
+        if start.lower() in stop_names and end.lower() in stop_names:
+            stops_formatted = [{"stop_name": s[0], "latitude": s[1], "longitude": s[2]} for s in stops]
+            result_routes.append({
+                "id": route_id,
+                "route_name": route_name,
+                "start_point": start_point,
+                "end_point": end_point,
+                "stops": stops_formatted
+            })
 
     conn.close()
-    return {"routes": routes}
+    return {"routes": result_routes}
+
 
 @app.get("/api/nearby_stops")
 async def nearby_stops(lat: float, lon: float, radius: float = 0.01):
@@ -342,27 +361,6 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-
-@app.get("/api/search_routes")
-def search_routes(start: str = Query(...), end: str = Query(...)):
-    # MOCK data example, replace with real DB or algorithm
-    sample_routes = [
-        {"route_name": "Route 1", "stops": ["kukatpally", "miyapur", "Ameerpet"]},
-        {"route_name": "Route 2", "stops": ["LB Nagar", "Miyapur", "Uppal"]},
-        {"route_name": "Route 3", "stops": ["Kukatpally", "BHEL", "Lingampally"]}
-        
-    ]
-    start_lower = start.strip().lower()
-    end_lower = end.strip().lower()
-
-    # Filter mock data by matching start and end
-    matching_routes = [
-        r for r in sample_routes 
-        if start_lower in [stop.lower() for stop in r["stops"]] 
-        and end_lower in [stop.lower() for stop in r["stops"]]
-    ]
-
-    return JSONResponse(content={"routes": matching_routes})
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=5000)
