@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -9,9 +8,7 @@ import sqlite3
 import json
 import asyncio
 import random
-import time
 from datetime import datetime, timedelta
-import gzip
 import uvicorn
 
 app = FastAPI(title="Bus Tracker")
@@ -26,13 +23,13 @@ def get_db_connection():
 
 # Database setup
 def init_db():
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     # Create tables
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS buses (
-        id INTEGER PRIMARY KEY,
+        bus_id INTEGER PRIMARY KEY,
         bus_number TEXT,
         route_id INTEGER,
         latitude REAL,
@@ -45,7 +42,8 @@ def init_db():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS routes (
-        id INTEGER PRIMARY KEY,
+        route_id INTEGER PRIMARY KEY,
+        route_no TEXT,
         route_name TEXT,
         start_point TEXT,
         end_point TEXT
@@ -54,11 +52,12 @@ def init_db():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS stops (
-        id INTEGER PRIMARY KEY,
+        stop_id INTEGER PRIMARY KEY,
         stop_name TEXT,
         latitude REAL,
         longitude REAL,
-        route_id INTEGER
+        route_id INTEGER,
+        sequence INTEGER
     )
     """)
 
@@ -96,25 +95,12 @@ def init_db():
         (4, "BUS004", 3, 17.4126, 78.4071, 28.0, 50, datetime.now())
     ]
 
-    cursor.executemany("INSERT OR REPLACE INTO routes VALUES (?, ?, ?, ?)", sample_routes)
+    cursor.executemany("INSERT OR REPLACE INTO routes VALUES (?, ?, ?, ?, ?)", sample_routes)
     cursor.executemany("INSERT OR REPLACE INTO stops VALUES (?, ?, ?, ?, ?)", sample_stops)
     cursor.executemany("INSERT OR REPLACE INTO buses VALUES (?, ?, ?, ?, ?, ?, ?, ?)", sample_buses)
 
     conn.commit()
     conn.close()
-
-# Initialize database
-init_db()
-bus_arrivals = {
-    "stop1": [
-        {"route": "5A", "destination": "Downtown"},
-        {"route": "7B", "destination": "Airport"}
-    ],
-    "stop2": [
-        {"route": "3C", "destination": "Mall"},
-        {"route": "9D", "destination": "University"}
-    ]
-}
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -133,7 +119,7 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
-            except:
+            except WebSocketDisconnect:
                 self.disconnect(connection)
 
 manager = ConnectionManager()
@@ -162,80 +148,47 @@ async def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
 
 @app.get("/api/stops")
-async def getstops():
-    conn = sqlite3.connect("bustracker.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM stops")
-    stops = []
-    for row in cursor.fetchall():
-        stops.append({
-            "id": row[0],
-            "stopname": row[1],
-            "latitude": row[2],
-            "longitude": row[3],
-            "routeid": row[4]
-        })
-    conn.close()
-    return stops
-
-
-    # Compress response for low bandwidth
-    from fastapi.responses import Response
-import gzip
-import json
-
-response_data = json.dumps(buses)
-compressed_data = gzip.compress(response_data.encode("utf-8"))
-
-return Response(
-    content=compressed_data,
-    media_type="application/json",
-    headers={"Content-Encoding": "gzip"}
-)
-
-@app.get("/api/stops")
 async def get_stops():
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM stops")
     stops = []
     for row in cursor.fetchall():
         stops.append({
-            "id": row[0],
-            "stop_name": row[1],
-            "latitude": row[2],
-            "longitude": row[3],
-            "route_id": row[4]
+            "id": row["stop_id"],
+            "stop_name": row["stop_name"],
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "route_id": row["route_id"]
         })
     conn.close()
     return {"stops": stops}
 
 @app.get("/api/routes")
 async def get_routes():
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM routes")
     routes = []
     for row in cursor.fetchall():
         routes.append({
-            "id": row[0],
-            "route_name": row[1],
-            "start_point": row[2],
-            "end_point": row[3]
+            "id": row["route_id"],
+            "route_name": row["route_name"],
+            "start_point": row["start_point"],
+            "end_point": row["end_point"]
         })
     conn.close()
     return {"routes": routes}
 
 @app.get("/api/arrivals/{stop_id}")
 async def get_arrivals(stop_id: int):
-    # Mock arrival times calculation
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
-    cursor.execute("SELECT route_id FROM stops WHERE id = ?", (stop_id,))
+    cursor.execute("SELECT route_id FROM stops WHERE stop_id = ?", (stop_id,))
     result = cursor.fetchone()
 
     if result:
-        route_id = result[0]
+        route_id = result["route_id"]
         cursor.execute("SELECT * FROM buses WHERE route_id = ?", (route_id,))
         buses = cursor.fetchall()
 
@@ -244,9 +197,9 @@ async def get_arrivals(stop_id: int):
             # Calculate mock arrival time (2-15 minutes)
             arrival_time = datetime.now() + timedelta(minutes=random.randint(2, 15))
             arrivals.append({
-                "bus_number": bus[1],
+                "bus_number": bus["bus_number"],
                 "estimated_arrival": arrival_time.strftime("%H:%M"),
-                "occupancy": bus[6]
+                "occupancy": bus["occupancy"]
             })
     else:
         arrivals = []
@@ -254,38 +207,47 @@ async def get_arrivals(stop_id: int):
     conn.close()
     return {"arrivals": arrivals}
 
+# Updated search_routes function in main.py
 @app.get("/api/search_routes")
 async def search_routes(start: str = Query(...), end: str = Query(...)):
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
 
-    cursor.execute("SELECT id, route_name, start_point, end_point FROM routes")
+    # Select the new path column
+    cursor.execute("SELECT route_id, route_no, route_name, start_point, end_point, path FROM routes")
     routes = cursor.fetchall()
 
     result_routes = []
 
-    for route_id, route_name, start_point, end_point in routes:
+    for route in routes:
+        route_id = route["route_id"]
+        # Use the correct column for stop id
         cursor.execute("SELECT stop_name, latitude, longitude FROM stops WHERE route_id = ?", (route_id,))
         stops = cursor.fetchall()
 
-        stop_names = [stop[0].lower() for stop in stops]
+        stop_names = [stop["stop_name"].lower() for stop in stops]
         if start.lower() in stop_names and end.lower() in stop_names:
-            stops_formatted = [{"stop_name": s[0], "latitude": s[1], "longitude": s[2]} for s in stops]
+            stops_formatted = [{"stop_name": s["stop_name"], "latitude": s["latitude"], "longitude": s["longitude"]} for s in stops]
+            
+            # Parse the path from the database
+            path_data = json.loads(route["path"]) if route["path"] else []
+            
             result_routes.append({
                 "id": route_id,
-                "route_name": route_name,
-                "start_point": start_point,
-                "end_point": end_point,
-                "stops": stops_formatted
+                "route_no": route["route_no"], # Use the correct column for route_no
+                "route_name": route["route_name"],
+                "start_point": route["start_point"],
+                "end_point": route["end_point"],
+                "stops": stops_formatted,
+                "path": path_data # Add the path data
             })
 
     conn.close()
     return {"routes": result_routes}
 
-
 @app.get("/api/nearby_stops")
 async def nearby_stops(lat: float, lon: float, radius: float = 0.01):
-    conn = sqlite3.connect("bus_tracker.db")
+    conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         SELECT *, 
@@ -298,11 +260,11 @@ async def nearby_stops(lat: float, lon: float, radius: float = 0.01):
     stops = []
     for row in cursor.fetchall():
         stops.append({
-            "id": row[0],
-            "stop_name": row[1],
-            "latitude": row[2],
-            "longitude": row[3],
-            "route_id": row[4]
+            "id": row["stop_id"],
+            "stop_name": row["stop_name"],
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "route_id": row["route_id"]
         })
 
     conn.close()
@@ -316,39 +278,38 @@ async def websocket_endpoint(websocket: WebSocket):
             # Simulate real-time bus updates
             await asyncio.sleep(5)  # Update every 5 seconds
 
-            # Update bus positions with mock data
-            conn = sqlite3.connect("bus_tracker.db")
+            conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM buses")
             buses = cursor.fetchall()
 
             for bus in buses:
                 # Simulate GPS movement
-                new_lat = bus[3] + random.uniform(-0.001, 0.001)
-                new_lon = bus[4] + random.uniform(-0.001, 0.001)
-                new_speed = max(0, bus[5] + random.uniform(-5, 5))
-                new_occupancy = max(0, min(100, bus[6] + random.randint(-5, 5)))
+                new_lat = bus["latitude"] + random.uniform(-0.001, 0.001)
+                new_lon = bus["longitude"] + random.uniform(-0.001, 0.001)
+                new_speed = max(0, bus["speed"] + random.uniform(-5, 5))
+                new_occupancy = max(0, min(100, bus["occupancy"] + random.randint(-5, 5)))
 
                 cursor.execute("""
                     UPDATE buses 
                     SET latitude=?, longitude=?, speed=?, occupancy=?, last_updated=?
-                    WHERE id=?
-                """, (new_lat, new_lon, new_speed, new_occupancy, datetime.now(), bus[0]))
+                    WHERE bus_id=?
+                """, (new_lat, new_lon, new_speed, new_occupancy, datetime.now(), bus["bus_id"]))
 
             conn.commit()
-
+            
             # Get updated data
             cursor.execute("SELECT * FROM buses")
             updated_buses = []
             for row in cursor.fetchall():
                 updated_buses.append({
-                    "id": row[0],
-                    "bus_number": row[1],
-                    "route_id": row[2],
-                    "latitude": row[3],
-                    "longitude": row[4],
-                    "speed": row[5],
-                    "occupancy": row[6]
+                    "id": row["bus_id"],
+                    "bus_number": row["bus_number"],
+                    "route_id": row["route_id"],
+                    "latitude": row["latitude"],
+                    "longitude": row["longitude"],
+                    "speed": row["speed"],
+                    "occupancy": row["occupancy"]
                 })
 
             conn.close()
