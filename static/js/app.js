@@ -84,4 +84,31 @@ document.addEventListener('DOMContentLoaded', () => {
             searchResults.textContent = `Error: ${error.message}`;
         }
     });
+    
+    document.getElementById('arrival-stop').addEventListener('change', async function() 
+    {
+        const stopId = this.value;
+        const container = document.getElementById('arrivals-container');
+        if (!stopId) {
+            container.innerHTML = '';
+            return;
+        }
+        container.innerHTML = 'Loading arrivals...';
+        try {
+            const response = await fetch(`/api/arrivals/${stopId}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch arrivals');
+            }
+            const arrivals = await response.json();
+            if (arrivals.length === 0) {
+                container.innerHTML = 'No arrival data available for this stop.';
+                return;
+            }
+            container.innerHTML = arrivals.map(a =>
+                `Route: ${a.route} to ${a.destination}, ETA: ${a.eta} min`
+            ).join('<br>');
+        } catch (error) {
+            container.innerHTML = error.message;
+        }
+  });
 });

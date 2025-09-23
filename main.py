@@ -1,30 +1,28 @@
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request, Query, HTTPException
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
-from fastapi import Query
-from fastapi.responses import Response
-import gzip
-import json
-
-
+from typing import List
 import sqlite3
 import json
 import asyncio
 import random
 import time
 from datetime import datetime, timedelta
-from typing import List
 import gzip
 import uvicorn
 
 app = FastAPI(title="Bus Tracker")
 
-# Mount static files and templates
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+def get_db_connection():
+    conn = sqlite3.connect("bus_tracker.db")
+    conn.row_factory = sqlite3.Row
+    return conn
 
 # Database setup
 def init_db():
@@ -107,6 +105,16 @@ def init_db():
 
 # Initialize database
 init_db()
+bus_arrivals = {
+    "stop1": [
+        {"route": "5A", "destination": "Downtown"},
+        {"route": "7B", "destination": "Airport"}
+    ],
+    "stop2": [
+        {"route": "3C", "destination": "Mall"},
+        {"route": "9D", "destination": "University"}
+    ]
+}
 
 # WebSocket connection manager
 class ConnectionManager:
@@ -139,6 +147,11 @@ class BusLocation(BaseModel):
     speed: float
     occupancy: int
 
+class Arrival(BaseModel):
+    route: str
+    destination: str
+    eta: int
+
 # Routes
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
@@ -148,24 +161,23 @@ async def read_root(request: Request):
 async def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin.html", {"request": request})
 
-@app.get("/api/buses")
-async def get_buses():
-    conn = sqlite3.connect("bus_tracker.db")
+@app.get("/api/stops")
+async def getstops():
+    conn = sqlite3.connect("bustracker.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT * FROM buses")
-    buses = []
+    cursor.execute("SELECT * FROM stops")
+    stops = []
     for row in cursor.fetchall():
-        buses.append({
+        stops.append({
             "id": row[0],
-            "bus_number": row[1],
-            "route_id": row[2],
-            "latitude": row[3],
-            "longitude": row[4],
-            "speed": row[5],
-            "occupancy": row[6],
-            "last_updated": row[7]
+            "stopname": row[1],
+            "latitude": row[2],
+            "longitude": row[3],
+            "routeid": row[4]
         })
     conn.close()
+    return stops
+
 
     # Compress response for low bandwidth
     from fastapi.responses import Response
@@ -243,8 +255,6 @@ async def get_arrivals(stop_id: int):
     return {"arrivals": arrivals}
 
 @app.get("/api/search_routes")
-async def search_routes(start: str = "", end: str = ""):
-    @app.get("/api/search_routes")
 async def search_routes(start: str = Query(...), end: str = Query(...)):
     conn = sqlite3.connect("bus_tracker.db")
     cursor = conn.cursor()
